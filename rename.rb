@@ -1,6 +1,15 @@
-# Set your path to the documents
-folder_path = "/Users/Lawson/Documents/Colonial\ Parking/Client\ Center\ 2.0/Reports/201207"
+require 'FileUtils'
 
+# Set your path to the documents
+folder_path = "/Users/jakedev2/Desktop/Col\ Client\ Center\ 2.0\ Working\ Dir/201207"
+success_dir = folder_path + "/_renamed"
+failure_dir = folder_path + "/_not-renamed"
+
+FileUtils.mkdir success_dir if not File.directory? success_dir
+successes = Dir.new success_dir
+
+FileUtils.mkdir failure_dir if not File.directory? failure_dir
+failures = Dir.new failure_dir
 # Adding some color function to our output
 class String
   def colorize(color_code)
@@ -43,6 +52,7 @@ counts = { success: 0, failure: 0 }
 Dir.glob(folder_path + "/*").sort.each do |f|
     extension = File.extname(f)
     filename = File.basename(f, extension)
+    old_filename = folder_path + "/" + filename + extension
     # puts filename
     # puts extension
     match = false
@@ -88,15 +98,16 @@ Dir.glob(folder_path + "/*").sort.each do |f|
 
     if match
     	# Add a preceding zero to two digit lot numbers
-    	if /^[\d]{2}$/.match(lot_number)
-    		lot_number = "0" + lot_number
-    	end
+        if /^[\d]{2}$/.match(lot_number)
+            lot_number = "0" + lot_number
+        end
 
-    	report_title = report_title.sub(" ", "-")
-    	new_filename = year + "_" + month + "_" + lot_number + "_" + report_title + extension
+        report_title = report_title.sub(" ", "-")
+        new_filename = "LOT" + lot_number + "_" + year + "_" + month + "_" + report_title + extension
     	
-    	# Rename the file
-    	if File.rename( f, folder_path + "/" + new_filename )
+    	# Rename and move the file
+        if FileUtils.mv( old_filename, success_dir + "/" + new_filename ) 
+    	#if File.rename( f, folder_path + "/" + new_filename )
     		counts[:success] = counts[:success] + 1
     		message = "'" + filename + "' converted to: '" + new_filename + "'"
     		puts message.green
@@ -107,7 +118,8 @@ Dir.glob(folder_path + "/*").sort.each do |f|
     	end
 	
     else
-    	new_filename = filename + extension
+        new_filename = filename + extension
+    	#FileUtils.mv( old_filename, failure_dir + "/" + new_filename )
     	message = "Failure: File does not conform to conventions: " + filename
     	counts[:failure] = counts[:failure] + 1
     	puts message.red
