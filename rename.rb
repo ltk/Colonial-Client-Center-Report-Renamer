@@ -1,15 +1,15 @@
 require 'FileUtils'
 
 # Set your path to the documents
-folder_path = "/Users/jakedev2/Desktop/Col\ Client\ Center\ 2.0\ Working\ Dir/201207"
+folder_path = "/Users/jakedev2/Desktop/Col\ Client\ Center\ 2.0\ Working\ Dir/201206"
 success_dir = folder_path + "/_renamed"
-failure_dir = folder_path + "/_not-renamed"
+# failure_dir = folder_path + "/_not-renamed"
 
 FileUtils.mkdir success_dir if not File.directory? success_dir
 successes = Dir.new success_dir
 
-FileUtils.mkdir failure_dir if not File.directory? failure_dir
-failures = Dir.new failure_dir
+# FileUtils.mkdir failure_dir if not File.directory? failure_dir
+# failures = Dir.new failure_dir
 # Adding some color function to our output
 class String
   def colorize(color_code)
@@ -56,8 +56,11 @@ Dir.glob(folder_path + "/*").sort.each do |f|
     # puts filename
     # puts extension
     match = false
+    lot_count = 1
 
-    if /^[\d]{2,3} [a-zA-Z]+$/.match( filename ) # 123 statement
+    #if /^([\d]{2,3})(-[\d]{2,3})*.*/.match(filename)
+    
+    if /^[\d]{2,3}[ ]+[a-zA-Z]+$/.match( filename ) # 123 statement
     	lot_number_match = /^(?<lot>[\d]{2,3})/.match( filename )
     	report_title_match = /(?<title>[a-zA-Z]+)$/.match( filename )
 
@@ -66,6 +69,39 @@ Dir.glob(folder_path + "/*").sort.each do |f|
     	lot_number = lot_number_match[:lot]
 
     	match = true
+
+    elsif /^[\d]{2,3}-[\d]{2,3}-[\d]{2,3} [a-zA-Z]+$/.match( filename ) # 123 statement
+        lot_count = 3
+        lot_number_match = /^(?<lot1>[\d]{2,3})-(?<lot2>[\d]{2,3})-(?<lot3>[\d]{2,3})/.match( filename )
+        report_title_match = /(?<title>[a-zA-Z]+)$/.match( filename )
+
+        report_title = report_title_match[:title]
+        lot_numbers = Array.new
+        lot_numbers[1] = lot_number_match[:lot1]
+        lot_numbers[2]  = lot_number_match[:lot2]
+        lot_numbers[3]  = lot_number_match[:lot3]
+
+        match = true
+
+    elsif /^[\d]{2,3} [a-zA-Z]+ [\d]{4}-[\d]{2}$/.match( filename ) # 123 statement 2012-08
+        lot_number_match = /^(?<lot>[\d]{2,3})/.match( filename )
+        report_title_match = /(?<title>[a-zA-Z]+) [\d]{4}-[\d]{2}$/.match( filename )
+
+        report_title = report_title_match[:title]
+        
+        lot_number = lot_number_match[:lot]
+
+        match = true
+
+    elsif /^[\d]{2,3} [a-zA-Z]+ [\d]{2}\.[\d]{2}$/.match( filename ) # 123 statement 08.12
+        lot_number_match = /^(?<lot>[\d]{2,3})/.match( filename )
+        report_title_match = /(?<title>[a-zA-Z]+) [\d]{2}\.[\d]{2}$$/.match( filename )
+
+        report_title = report_title_match[:title]
+        
+        lot_number = lot_number_match[:lot]
+
+        match = true
 
     elsif /^[\d]{2,3}[ -][a-zA-Z]+[ a-zA-Z\d]+$/.match( filename ) # 123 variance 201207 / 123-variance 201207
     	lot_number_match = /^(?<lot>[\d]{2,3})/.match( filename )
@@ -103,19 +139,46 @@ Dir.glob(folder_path + "/*").sort.each do |f|
         end
 
         report_title = report_title.sub(" ", "-")
-        new_filename = "LOT" + lot_number + "_" + year + "_" + month + "_" + report_title + extension
-    	
-    	# Rename and move the file
-        if FileUtils.mv( old_filename, success_dir + "/" + new_filename ) 
-    	#if File.rename( f, folder_path + "/" + new_filename )
-    		counts[:success] = counts[:success] + 1
-    		message = "'" + filename + "' converted to: '" + new_filename + "'"
-    		puts message.green
-    	else
-    		counts[:failure] = counts[:falure] + 1
-    		message = "'" + filename + "' could not be converted to: '" + new_filename + "'"
-    		puts message.red
-    	end
+
+        if lot_count == 3 
+            loop_failures = 0
+            (1..3).each do |i|
+                
+                lot_number = lot_numbers[i]
+                new_filename = "LOT" + lot_number + "_" + year + "_" + month + "_" + report_title + extension
+
+                # Rename and move the file
+                if FileUtils.copy( old_filename, success_dir + "/" + new_filename ) 
+                #if File.rename( f, folder_path + "/" + new_filename )
+                    counts[:success] = counts[:success] + 1
+                    message = "'" + filename + "' multi-converted to: '" + new_filename + "'"
+                    puts message.blue
+                else
+                    loop_failures = loop_failures + 1
+                    counts[:failure] = counts[:failure] + 1
+                    message = "'" + filename + "' could not be multi-converted to: '" + new_filename + "'"
+                    puts message.red
+                end
+            end
+            FileUtils.remove( old_filename ) if loop_failures == 0
+
+        elsif lot_count == 2
+
+        else
+            new_filename = "LOT" + lot_number + "_" + year + "_" + month + "_" + report_title + extension
+        	
+        	# Rename and move the file
+            if FileUtils.mv( old_filename, success_dir + "/" + new_filename ) 
+        	#if File.rename( f, folder_path + "/" + new_filename )
+        		counts[:success] = counts[:success] + 1
+        		message = "'" + filename + "' converted to: '" + new_filename + "'"
+        		puts message.green
+        	else
+        		counts[:failure] = counts[:falure] + 1
+        		message = "'" + filename + "' could not be converted to: '" + new_filename + "'"
+        		puts message.red
+        	end
+        end
 	
     else
         new_filename = filename + extension
