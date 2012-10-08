@@ -1,15 +1,5 @@
 require 'FileUtils'
 
-# Set your path to the documents
-folder_path = "/Users/jakedev2/Desktop/Col\ Client\ Center\ 2.0\ Working\ Dir/201206"
-success_dir = folder_path + "/_renamed"
-# failure_dir = folder_path + "/_not-renamed"
-
-FileUtils.mkdir success_dir if not File.directory? success_dir
-successes = Dir.new success_dir
-
-# FileUtils.mkdir failure_dir if not File.directory? failure_dir
-# failures = Dir.new failure_dir
 # Adding some color function to our output
 class String
   def colorize(color_code)
@@ -33,160 +23,166 @@ class String
   end
 end
 
-puts "Enter report year (4 digit):"
-while year = gets.chomp do
-	break if /^[\d]{4}$/.match(year)
-	puts "Invalid! Enter a 4 digit report year (e.g. 2012):"
-end
+class CCC_Report
+    def initialize(f, path, year, month, success_dir)
+        @errors = Array.new
 
-puts "Enter report month (2 digit):"
-while month = gets.chomp do
-	break if ( /^[\d]{2}$/.match(month) and (1..12) === month.to_i )
-	puts "Invalid! Enter a valid 2 digit report month (e.g. 04 for April):"
-end
+        @file = f
+        @ext = File.extname(f)
+        @basename = File.basename(f, @ext)
+        @old_filename = path + "/" + @basename + @ext
+        @year = year
+        @month = month
 
-puts "Renaming files..."
+        @success_dir = success_dir
 
-counts = { success: 0, failure: 0 }
+        self.setup_directories
 
-Dir.glob(folder_path + "/*").sort.each do |f|
-    extension = File.extname(f)
-    filename = File.basename(f, extension)
-    old_filename = folder_path + "/" + filename + extension
-    # puts filename
-    # puts extension
-    match = false
-    lot_count = 1
+        @passed_regex = false
 
-    #if /^([\d]{2,3})(-[\d]{2,3})*.*/.match(filename)
-    
-    if /^[\d]{2,3}[ ]+[a-zA-Z]+$/.match( filename ) # 123 statement
-    	lot_number_match = /^(?<lot>[\d]{2,3})/.match( filename )
-    	report_title_match = /(?<title>[a-zA-Z]+)$/.match( filename )
+        @lots = self.pull_lot_numbers
+        @report_title = self.pull_report_title
 
-    	report_title = report_title_match[:title]
-    	
-    	lot_number = lot_number_match[:lot]
+        @new_filenames = self.construct_new_filename
 
-    	match = true
+        moved_files = self.mv_files
 
-    elsif /^[\d]{2,3}-[\d]{2,3}-[\d]{2,3} [a-zA-Z]+$/.match( filename ) # 123 statement
-        lot_count = 3
-        lot_number_match = /^(?<lot1>[\d]{2,3})-(?<lot2>[\d]{2,3})-(?<lot3>[\d]{2,3})/.match( filename )
-        report_title_match = /(?<title>[a-zA-Z]+)$/.match( filename )
+        self.cleanup unless @errors.any?
 
-        report_title = report_title_match[:title]
-        lot_numbers = Array.new
-        lot_numbers[1] = lot_number_match[:lot1]
-        lot_numbers[2]  = lot_number_match[:lot2]
-        lot_numbers[3]  = lot_number_match[:lot3]
+        if @errors.any?
+            @errors.each do |message|
+                puts message
+            end
+        else
+            moved_files.each do |message|
+                puts message
+            end
+        end
+    end
 
-        match = true
+    def status 
+        return @errors.empty?
+    end
 
-    elsif /^[\d]{2,3} [a-zA-Z]+ [\d]{4}-[\d]{2}$/.match( filename ) # 123 statement 2012-08
-        lot_number_match = /^(?<lot>[\d]{2,3})/.match( filename )
-        report_title_match = /(?<title>[a-zA-Z]+) [\d]{4}-[\d]{2}$/.match( filename )
+    def setup_directories
+        FileUtils.mkdir @success_dir if not File.directory? @success_dir
+    end
 
-        report_title = report_title_match[:title]
-        
-        lot_number = lot_number_match[:lot]
+    def pull_lot_numbers
+        lots = Array.new
 
-        match = true
+        lot_sub_strings = @basename.split(/[ -]/)
 
-    elsif /^[\d]{2,3} [a-zA-Z]+ [\d]{2}\.[\d]{2}$/.match( filename ) # 123 statement 08.12
-        lot_number_match = /^(?<lot>[\d]{2,3})/.match( filename )
-        report_title_match = /(?<title>[a-zA-Z]+) [\d]{2}\.[\d]{2}$$/.match( filename )
-
-        report_title = report_title_match[:title]
-        
-        lot_number = lot_number_match[:lot]
-
-        match = true
-
-    elsif /^[\d]{2,3}[ -][a-zA-Z]+[ a-zA-Z\d]+$/.match( filename ) # 123 variance 201207 / 123-variance 201207
-    	lot_number_match = /^(?<lot>[\d]{2,3})/.match( filename )
-    	report_title_match = /(?<title>[a-zA-Z]+[ a-zA-Z\d]+)$/.match( filename )
-    	
-    	report_title = report_title_match[:title]
-
-    	lot_number = lot_number_match[:lot]
-
-    	match = true
-
-    elsif /^[\d]{2,3}-[\d]{1} [a-zA-Z]+$/.match( filename ) # 123-1 statement
-    	lot_number_match = /^(?<lot>[\d]{2,3})/.match( filename )
-    	report_number_match = /^[\d]{2,3}-(?<report_number>[\d]{1})/.match( filename )
-    	report_title_match = /(?<title>[a-zA-Z]+)$/.match( filename )
-
-    	report_title = report_title_match[:title]
-    	report_number = report_number_match[:report_number]
-    	report_title = report_title + "-" + report_number
-    	
-    	lot_number = lot_number_match[:lot]
-
-    	match = true
-
-    # elsif /^[\d]{2,3}-[\d]{2,3} [a-z]+$/.match( filename ) # 824-825 statement
-    	#split into two separate files? Probably beyond the scope of this script.
-    # elsif /^[\d]{2,3} and [\d]{2,3} [a-z]+$/.match( filename ) # 123 and 345 statement
-    	#split into two separate files? Probably beyond the scope of this script.
-    end 
-
-    if match
-    	# Add a preceding zero to two digit lot numbers
-        if /^[\d]{2}$/.match(lot_number)
-            lot_number = "0" + lot_number
+        lot_sub_strings.each do |sub_str|
+            sub_str.scan(/(?:^|[^\d])(?<lot>[\d]{3})(?:[^\d]|$)/) do |match|
+                lots << match
+            end
         end
 
-        report_title = report_title.sub(" ", "-")
+        if not lots.any?
+            @errors << ("No lot ID found in " + @old_filename).red
+        end
 
-        if lot_count == 3 
-            loop_failures = 0
-            (1..3).each do |i|
-                
-                lot_number = lot_numbers[i]
-                new_filename = "LOT" + lot_number + "_" + year + "_" + month + "_" + report_title + extension
+        lots
+    end
 
-                # Rename and move the file
-                if FileUtils.copy( old_filename, success_dir + "/" + new_filename ) 
-                #if File.rename( f, folder_path + "/" + new_filename )
-                    counts[:success] = counts[:success] + 1
-                    message = "'" + filename + "' multi-converted to: '" + new_filename + "'"
-                    puts message.blue
-                else
-                    loop_failures = loop_failures + 1
-                    counts[:failure] = counts[:failure] + 1
-                    message = "'" + filename + "' could not be multi-converted to: '" + new_filename + "'"
-                    puts message.red
+    def pull_report_title
+        report_title = @basename        
+
+        @lots.each do |lot|
+            report_title.sub!(/[ -_&]?#{lot}[ -_&]?/, '')
+        end
+
+        report_title.lstrip.gsub(/[[:space:]]/, "_").gsub(/\./,"_")
+    end
+
+    def construct_new_filename
+        new_filenames = Array.new
+
+        @lots.each do |lot|
+            if lot.is_a?(String)
+                new_filenames << "LOT" + lot + "_" + @year + "_" + @month + "_" + @report_title + @ext
+            else
+                lot.each do |l|
+                    new_filenames << "LOT" + l + "_" + @year + "_" + @month + "_" + @report_title + @ext
                 end
             end
-            FileUtils.remove( old_filename ) if loop_failures == 0
-
-        elsif lot_count == 2
-
-        else
-            new_filename = "LOT" + lot_number + "_" + year + "_" + month + "_" + report_title + extension
-        	
-        	# Rename and move the file
-            if FileUtils.mv( old_filename, success_dir + "/" + new_filename ) 
-        	#if File.rename( f, folder_path + "/" + new_filename )
-        		counts[:success] = counts[:success] + 1
-        		message = "'" + filename + "' converted to: '" + new_filename + "'"
-        		puts message.green
-        	else
-        		counts[:failure] = counts[:falure] + 1
-        		message = "'" + filename + "' could not be converted to: '" + new_filename + "'"
-        		puts message.red
-        	end
         end
-	
-    else
-        new_filename = filename + extension
-    	#FileUtils.mv( old_filename, failure_dir + "/" + new_filename )
-    	message = "Failure: File does not conform to conventions: " + filename
-    	counts[:failure] = counts[:failure] + 1
-    	puts message.red
+
+        new_filenames
+    end
+
+    def mv_files
+        moved_files = Array.new
+
+        unless @errors.any?
+            @new_filenames.each do |new_name|
+                file_moved = FileUtils.copy( @old_filename, @success_dir + "/" + new_name )
+                moved_files << (@basename + @ext +  " converted to " + new_name).green
+            end
+        end
+        @errors << (@basename + @ext + " NOT converted.").red unless moved_files.any?
+        moved_files
+    end
+
+    def cleanup
+        FileUtils.remove( @old_filename )
     end
 end
 
-puts "Process complete. " + counts[:success].to_s + " files successfully renamed. " + counts[:failure].to_s + " failures."
+class CCC_Renamer
+    @@success_dir_name = "_renamed"
+
+    def initialize( path )
+        @successes = 0
+        @failures = 0
+
+        @path = path
+
+        @success_dir = @path + "/" + @@success_dir_name
+
+        @year = prompt_year
+        @month = prompt_month
+
+        self.process_dir
+
+        self.display_completion_msg
+    end
+
+    def display_completion_msg
+        puts "Process complete. " + @successes.to_s + " files successfully processed. " + @failures.to_s + " failures."
+    end
+
+    def prompt_year
+        puts "Enter report year (4 digit):"
+        while year = gets.chomp do
+            break if /^[\d]{4}$/.match(year)
+            puts "Invalid! Enter a 4 digit report year (e.g. 2012):"
+        end
+        
+        year
+    end
+
+    def prompt_month
+        puts "Enter report month (2 digit):"
+        while month = gets.chomp do
+            break if ( /^[\d]{2}$/.match(month) and (1..12) === month.to_i )
+            puts "Invalid! Enter a valid 2 digit report month (e.g. 04 for April):"
+        end
+        month
+    end
+
+    def process_dir
+        Dir.glob( @path + "/*" ).sort.each do |f|
+            file = CCC_Report.new( f, @path, @year, @month, @success_dir )
+
+            if file.status == true
+                @successes = @successes + 1;
+            else
+                @failures = @failures + 1;
+            end
+        end
+    end
+end
+
+rename = CCC_Renamer.new "/Users/jakedev2/Desktop/Col\ Client\ Center\ 2.0\ Working\ Dir/renaming\ tests/201206"
