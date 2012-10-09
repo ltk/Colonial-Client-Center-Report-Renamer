@@ -1,3 +1,11 @@
+unless ARGV.length == 1
+  puts "Please provide a path to a folder containing documents to rename."
+  exit
+end
+
+input_path = ARGV[0]
+ARGV.clear
+
 require 'FileUtils'
 
 # Adding some color function to our output
@@ -93,7 +101,7 @@ class CCC_Report
             report_title.sub!(/[ -_&]?#{lot}[ -_&]?/, '')
         end
 
-        report_title.lstrip.gsub(/[[:space:]]/, "_").gsub(/\./,"_")
+        report_title.lstrip.gsub(/[[:space:]]/, "_").gsub(/\./,"_").gsub(/--/,"-").gsub(/_-/,"_").gsub(/__/,"_")
     end
 
     def construct_new_filename
@@ -118,7 +126,7 @@ class CCC_Report
         unless @errors.any?
             @new_filenames.each do |new_name|
                 file_moved = FileUtils.copy( @old_filename, @success_dir + "/" + new_name )
-                moved_files << (@basename + @ext +  " converted to " + new_name).green
+                moved_files << (@old_filename +  " converted to " + new_name).green
             end
         end
         @errors << (@basename + @ext + " NOT converted.").red unless moved_files.any?
@@ -154,20 +162,20 @@ class CCC_Renamer
     end
 
     def prompt_year
-        puts "Enter report year (4 digit):"
+        puts ("Enter report year (4 digit):").yellow
         while year = gets.chomp do
             break if /^[\d]{4}$/.match(year)
-            puts "Invalid! Enter a 4 digit report year (e.g. 2012):"
+            puts "Invalid input! Enter a 4 digit report year (e.g. 2012):".red
         end
         
         year
     end
 
     def prompt_month
-        puts "Enter report month (2 digit):"
+        puts "Enter report month (2 digit):".yellow
         while month = gets.chomp do
             break if ( /^[\d]{2}$/.match(month) and (1..12) === month.to_i )
-            puts "Invalid! Enter a valid 2 digit report month (e.g. 04 for April):"
+            puts "Invalid input! Enter a valid 2 digit report month (e.g. 04 for April):".red
         end
         month
     end
@@ -185,4 +193,4 @@ class CCC_Renamer
     end
 end
 
-rename = CCC_Renamer.new "/Users/jakedev2/Desktop/Col\ Client\ Center\ 2.0\ Working\ Dir/renaming\ tests/201206"
+rename = CCC_Renamer.new input_path
