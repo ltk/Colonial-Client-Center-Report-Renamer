@@ -109,7 +109,9 @@ class CCC_Report
 
     def construct_new_filename
 
-        unless @lot.nil?
+        if @lot.nil?
+            @errors << ("Could not construct a new filename. ").red
+        else
             new_filename = "LOT" + @lot + "_" + @year + "_" + @month + "_" + @report_title + @ext
         end
 
@@ -155,11 +157,12 @@ class CCC_Renamer
 
     def combine_docs
         Dir.glob( @path + "/*" ).sort.each do |f|
-            if (File.directory?(f) && f != @combined_dir)
+            # if (File.directory?(f) && f != @combined_dir)
+            if File.directory? f
                 Dir.glob( f + "/*" ).sort.each do |report|
                     ext = File.extname(report)
                     basename = File.basename(report, ext)
-                    # puts report.green if FileUtils.mv( report, @combined_dir + "/" + basename + ext, force: true )
+                    puts report.green if FileUtils.mv( report, @combined_dir + "/" + basename + ext, force: true )
                 end
             end
         end
